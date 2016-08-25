@@ -2,6 +2,8 @@ import java.net.*;
 import java.io.*;
 
 public class Server {
+	static final int MAX_BYTES = 508;
+	
 	static final byte DATA = 0x00;
 	
 	static final byte HELLO_SERVER = 0x1E;
@@ -29,12 +31,15 @@ public class Server {
 	{
 		byte response = in.readByte();
 		if (response == command) return true;
+		System.out.println("Error! Expected " + command + ", but got " + response);
 		out.writeByte(ERROR);
+		out.flush();
 		return false;
 	}
 	static void writeAnswer(byte answer) throws IOException
 	{
 		out.writeByte(answer);
+		out.flush();
 	}
 	
 	static byte readCommand() throws IOException
@@ -49,15 +54,29 @@ public class Server {
 		System.out.println("Client sent length: " + data.length);
 	}
 	
-	static void readData() throws IOException
+	static void readData() throws IOException, Exception
 	{
-		in.read(data);
+		System.out.print(data.length + " ");
+		for (int i = 0; i < data.length; i+= MAX_BYTES)
+		{
+			System.out.println(Math.min(data.length, i + MAX_BYTES));
+			in.readFully(data, i, Math.min(data.length, i + MAX_BYTES));
+		}
+		for (int i=0; i<data.length; i++)
+		{
+			if (data[i] != 22)
+			{
+				System.out.println("FUCK " + data[i] + " at " + i);
+				throw new Exception("FFFFFFFFFFFFFUUUUUUUUUUUUUUUUUUUUUUU");
+			}
+		}
 	}
 	
     public static void main(String[] ar)
     {
         int port = 9090;
         ServerSocket ss = null;
+        BufferedReader keyboard = new BufferedReader(new InputStreamReader(System.in));
         try
         {
             ss = new ServerSocket(port);
@@ -67,27 +86,29 @@ public class Server {
             {
             	System.out.println("Waiting for a client...");
 	            Socket socket = ss.accept();
-	            System.out.println("Client connected");
-	            System.out.println();
 	            InputStream sin = socket.getInputStream();
 	            OutputStream sout = socket.getOutputStream();
-	            in = new DataInputStream(sin);
-	            out = new DataOutputStream(sout);
+	            in = new DataInputStream(sin);//new BufferedInputStream(sin));
+	            out = new DataOutputStream(sout);//new BufferedOutputStream(sout));
+	            System.out.println("Client connected");
+	            System.out.println();
 	            
 	            // SDTUDTP3K communication:
 	            boolean b = awaitCommand(HELLO_SERVER);
-	            assert b: "Hello client lost";
+	            if (!b) throw new Exception("Hello client lost");
+	            else System.out.println("> Hello, server!");
 	            writeAnswer(HELLO_CLIENT);
+	            System.out.println("< Hello, client!");
 	            
 	            int l = in.readInt();
 	            setDataLength(l);
-	            
 	            System.out.println("Handshake done");
 	            
-	            boolean dataExchange = true;
+	            boolean dataExchange = true, error = false;
 	
 	            while(dataExchange) {
 	                // data exchanging
+	            	if (error) error = keyboard.readLine() == " ";
 	            	byte cmd = readCommand();
 	            	switch (cmd)
 	            	{
@@ -114,8 +135,10 @@ public class Server {
 	            		break;
 	            		
 	            	case ERROR:
-	            		System.out.println("Client error!");
-	            		dataExchange = false;
+	            	default:
+	            		System.out.println("Client error! " + cmd);
+	            		error = true;
+	            		//dataExchange = false;
 	            		break;
 	            	}
 	            }
