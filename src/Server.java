@@ -51,7 +51,27 @@ public class Server {
 	
 	static void readData() throws IOException
 	{
-		in.read(data);
+		int read = in.read(data);
+		while (read != data.length)
+		{
+			// not everything was read
+			int rest = data.length - read;
+			read += in.read(data, read, rest);
+		}
+	}
+	
+	static boolean validateData()
+	{
+		for (int i = 0; i < data.length; i++)
+		{
+			if (data[i] != (i % 10))
+			{
+				System.out.println(data[i] + " " + (i % 10));
+				System.exit(0);
+				return false;
+			}
+		}
+		return true;
 	}
 	
     public static void main(String[] ar)
@@ -93,7 +113,8 @@ public class Server {
 	            	{
 	            	case DATA:
 	            		readData();
-	            		System.out.println("Data successfully received");
+	            		if (validateData()) System.out.print(".");
+	            		else  System.out.print("!");
 	            		writeAnswer(DATA_RECEIVED);
 	            		break;
 	            		
