@@ -82,6 +82,8 @@ public class Server {
         {
             ss = new ServerSocket(port);
             System.out.println("Server started successfully");
+            
+            VideoFrame window = null;
 
             while(true)
             {
@@ -104,6 +106,8 @@ public class Server {
 	            
 	            System.out.println("Handshake done");
 	            
+	            window = new VideoFrame(data);
+	            
 	            boolean dataExchange = true;
 	
 	            while(dataExchange) {
@@ -113,13 +117,15 @@ public class Server {
 	            	{
 	            	case DATA:
 	            		readData();
-	            		if (validateData()) System.out.print(".");
-	            		else  System.out.print("!");
+	            		window.dataChanged();
+	            		//if (validateData()) System.out.print(".");
+	            		//else  System.out.print("!");
 	            		writeAnswer(DATA_RECEIVED);
 	            		break;
 	            		
 	            	case LENGTH_CHANGE:
 	            		setDataLength(in.readInt());
+	            		window.refChanged(data);
 	            		writeAnswer(COMMAND_EXECUTED);
 	            		break;
 	            		
@@ -132,6 +138,7 @@ public class Server {
 	            		dataExchange = false;
 	            		System.out.println("Goodbye, server!");
 	            		writeAnswer(GB_CLIENT);
+	            		window.setVisible(false);
 	            		break;
 	            		
 	            	case ERROR:
