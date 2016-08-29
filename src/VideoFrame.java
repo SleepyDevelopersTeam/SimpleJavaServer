@@ -1,6 +1,7 @@
 import java.awt.Color;
 import java.awt.Graphics;
 import java.awt.image.BufferedImage;
+import java.awt.image.WritableRaster;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 
@@ -13,21 +14,22 @@ public class VideoFrame extends JFrame
 {
 	Canvas cv;
 	
-	public VideoFrame(byte[] dataRef)
+	public VideoFrame(byte[] dataRef, short w, short h)
 	{
 		// TODO Auto-generated constructor stub
 		setTitle("Live stream");
 		setDefaultCloseOperation(EXIT_ON_CLOSE);
 		setVisible(true);
 		
-		cv = new Canvas(dataRef, this);
+		cv = new Canvas(dataRef, w, h, this);
 		add(cv);
 	}
 	
 	
-	public void dataChanged()
+	public void dataChanged(short w, short h)
 	{
-		cv.dataChanged();
+		cv.dataChanged(w, h);
+		setSize(w, h);
 	}
 	
 	public void refChanged(byte[] newRef)
@@ -39,19 +41,23 @@ public class VideoFrame extends JFrame
 class Canvas extends JPanel
 {
 	private byte[] imageData;
-	private byte[] rgb;
-	private ByteArrayInputStream imageStream;
+	private int[] argb;
+	//private ByteArrayInputStream imageStream;
 	private final Object mutex = new Object();
-	private boolean sizeSet;
 	private VideoFrame parent;
-	BufferedImage bmp;
+	private BufferedImage bmp;
+	private WritableRaster raster;
+	private short width, height;
 	
-	public Canvas(byte[] dataRef, VideoFrame parent)
+	public Canvas(byte[] dataRef, short w, short h, VideoFrame parent)
 	{
 		parent.setSize(400, 300);
 		this.parent = parent;
 		refChanged(dataRef);
-		//setSize(400, 300);
+		parent.setSize(w, h);
+		width = w;
+		height = h;
+		setSize(w, h);
 	}
 	
 	public void refChanged(byte[] newRef)
@@ -59,9 +65,7 @@ class Canvas extends JPanel
 		synchronized(mutex)
 		{
 			imageData = newRef;
-			sizeSet = false;
-			rgb = new byte[newRef.length / 2 * 3];
-			imageStream = new ByteArrayInputStream(rgb);
+			//imageStream = new (argb);
 		}
 	}
 	
@@ -69,48 +73,72 @@ class Canvas extends JPanel
 	protected void paintComponent(Graphics g)
 	{
 		super.paintComponent(g);
-		g.setColor(Color.red);
+		g.setColor(Color.cyan);
 		// g.fillRect(0, 0, getWidth(), getHeight());
+		if (argb == null) return;
 		synchronized(mutex)
 		{
 			try
 			{
-				imageStream.reset();
-				bmp = ImageIO.read(imageStream);
-				if (!sizeSet)
-				{
-					sizeSet = true;
-					parent.setSize(bmp.getWidth(), bmp.getHeight());
-				}
+				//imageStream.reset();
+				//bmp = ImageIO.read(imageStream);
 				g.drawImage(bmp, 0, 0, null);
+				//g.fillRect(50, 50, 10, height-10);
 			}
-			catch (IOException ex)
+			catch (Exception ex)
 			{
-				System.out.println("IOException! " + ex.getMessage());
+				System.out.println("Exception! " + ex.getMessage());
+				ex.printStackTrace();
 			}
 		}
 	}
 	
 	private void decodeImage()
 	{
-		int rgbIndex = 0;
-		for (int rawIndex = 0; rawIndex < imageData.length; rawIndex+=2)
+//		int rgbIndex = 0;
+//		for (int rawIndex = 0; rawIndex < imageData.length; rawIndex+=2)
+//		{
+//			// rgb 565 -> rgb 888
+//			byte b1 = imageData[rawIndex], b2 = imageData[rawIndex + 1];
+//			rgb[rgbIndex + 2] = (byte) ( ((b1>>3)&31) *255/31);
+//			rgb[rgbIndex + 2] = (byte) ( ( ((b1<<3)&56) + ((b2>>5)&7) ) *255/63);
+//			rgb[rgbIndex + 2] = (byte) ( ((b2)&31) *255/31);
+//		}
+		synchronized(mutex)
 		{
-			// rgb 565 -> rgb 888
-			byte b1 = imageData[rawIndex], b2 = imageData[rawIndex + 1];
-			rgb[rgbIndex + 2] = (byte) ( ((b1>>3)&31) *255/31);
-			rgb[rgbIndex + 2] = (byte) ( ( ((b1<<3)&56) + ((b2>>5)&7) ) *255/63);
-			rgb[rgbIndex + 2] = (byte) ( ((b2)&31) *255/31);
+			try
+			{
+				YUV_NV21_TO_RGB(argb, imageData, width, height);
+				//((WritableRaster) bmp.getRaster()).setPixels(0, 0, width, height, argb);
+				raster.setPixels(0, 0, width, height, argb);
+			}
+			catch (Exception e)
+			{
+				System.out.print(" !" + e.getMessage() + ", " + e.getClass().getName() + "! ");
+				//e.printStackTrace();
+			}
 		}
 	}
 	
-	void dataChanged()
+	void dataChanged(short w, short h)
 	{
+		if (width != w || height != h)
+		{
+			System.out.println("Size changed: " + w + "; " + h);
+			synchronized (mutex)
+			{
+				width = w; height = h;
+				argb = new int[width * height * 3];
+				bmp = new BufferedImage(w, h, BufferedImage.TYPE_3BYTE_BGR);
+				raster = (WritableRaster) bmp.getRaster();
+			}
+			setSize(w, h);
+		}
 		decodeImage();
-		invalidate();
+		repaint();
 	}
 	
-	public static void YUV_NV21_TO_RGB(int[] argb, byte[] yuv, int width, int height) {
+	private void YUV_NV21_TO_RGB(int[] argb, byte[] yuv, int width, int height) {
 	    final int frameSize = width * height;
 
 	    final int ii = 0;
@@ -134,7 +162,9 @@ class Canvas extends JPanel
 	            g = g < 0 ? 0 : (g > 255 ? 255 : g);
 	            b = b < 0 ? 0 : (b > 255 ? 255 : b);
 
-	            argb[a++] = 0xff000000 | (r << 16) | (g << 8) | b;
+	            argb[a++] = b;//0xff000000 | (r << 16) | (g << 8) | b;
+	            argb[a++] = g;
+	            argb[a++] = r;
 	        }
 	    }
 	}

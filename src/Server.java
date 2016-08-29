@@ -24,6 +24,7 @@ public class Server {
 	// data
 	static int length;
 	static byte[] data;
+	static short width, height;
 	
 	static boolean awaitCommand(byte command) throws IOException
 	{
@@ -51,6 +52,9 @@ public class Server {
 	
 	static void readData() throws IOException
 	{
+		width = in.readShort();
+		height = in.readShort();
+		
 		int read = in.read(data);
 		while (read != data.length)
 		{
@@ -62,15 +66,15 @@ public class Server {
 	
 	static boolean validateData()
 	{
-		for (int i = 0; i < data.length; i++)
-		{
-			if (data[i] != (i % 10))
-			{
-				System.out.println(data[i] + " " + (i % 10));
-				System.exit(0);
-				return false;
-			}
-		}
+//		for (int i = 0; i < data.length; i++)
+//		{
+//			if (data[i] != (i % 10))
+//			{
+//				System.out.println(data[i] + " " + (i % 10));
+//				System.exit(0);
+//				return false;
+//			}
+//		}
 		return true;
 	}
 	
@@ -106,7 +110,9 @@ public class Server {
 	            
 	            System.out.println("Handshake done");
 	            
-	            window = new VideoFrame(data);
+	            //VSThread th = new VSThread(data, (short) 400, (short) 300);
+	            //window = th.getFrame();
+	            window = new VideoFrame(data, (short) 400, (short) 300);
 	            
 	            boolean dataExchange = true;
 	
@@ -117,9 +123,9 @@ public class Server {
 	            	{
 	            	case DATA:
 	            		readData();
-	            		window.dataChanged();
-	            		//if (validateData()) System.out.print(".");
-	            		//else  System.out.print("!");
+	            		window.dataChanged(width, height);
+	            		if (validateData()) System.out.print(".");
+	            		else  System.out.print("!");
 	            		writeAnswer(DATA_RECEIVED);
 	            		break;
 	            		
